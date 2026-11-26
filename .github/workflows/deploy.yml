@@ -218,9 +218,9 @@ jobs:
           RSS_DESCRIPTION: ${{ vars.RSS_DESCRIPTION || '' }}
           FRONTEND_URL: ${{ vars.FRONTEND_URL || '' }}
           CACHE_STORAGE_MODE: ${{ vars.CACHE_STORAGE_MODE || 's3' }}
-          TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY || '' }}
+          TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY || secrets.TURNSTILE_SITE_KEY || '' }}
           TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY || '' }}
-          TURNSTILE_EXPECTED_HOSTNAME: ${{ vars.TURNSTILE_EXPECTED_HOSTNAME || '' }}
+          TURNSTILE_EXPECTED_HOSTNAME: ${{ vars.TURNSTILE_EXPECTED_HOSTNAME || secrets.TURNSTILE_EXPECTED_HOSTNAME || '' }}
         run: |
           set -euo pipefail
           if [[ "${{ needs.prepare.outputs.is_production }}" == "true" ]]; then

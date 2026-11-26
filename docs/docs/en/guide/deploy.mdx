@@ -70,7 +70,7 @@ Then add these in **Settings → Secrets and variables → Actions**:
 | Type | Name | Value |
 |------|------|-------|
 | Secret | `TURNSTILE_SECRET_KEY` | Turnstile Secret Key |
-| Variable | `TURNSTILE_SITE_KEY` | Turnstile Site Key |
+| Variable | `TURNSTILE_SITE_KEY` | Turnstile Site Key (a Secret also works) |
 | Variable (optional) | `TURNSTILE_EXPECTED_HOSTNAME` | Comma-separated allowed hostnames; defaults to the `FRONTEND_URL` host |
 
 > **Note**: Both keys must be configured together. Without them, attachment downloads fail closed (503) rather than bypassing verification. Keep the R2/S3 bucket private; a public bucket URL bypasses the Worker and therefore the gate. Attachments uploaded before enabling Turnstile are not covered.
