@@ -61,6 +61,20 @@ If you want to use your GitHub account to log in, please refer to the [Advanced 
 
 > **Tip**: Username/password login and GitHub OAuth login can be enabled simultaneously. Users can freely choose their preferred login method on the login page.
 
+#### Download Verification (required when using article attachments)
+
+Article attachment downloads are protected by Cloudflare Turnstile. First create a site in the Cloudflare dashboard under **Turnstile** and add your blog hostname to its allowed list.
+
+Then add these in **Settings → Secrets and variables → Actions**:
+
+| Type | Name | Value |
+|------|------|-------|
+| Secret | `TURNSTILE_SECRET_KEY` | Turnstile Secret Key |
+| Variable | `TURNSTILE_SITE_KEY` | Turnstile Site Key |
+| Variable (optional) | `TURNSTILE_EXPECTED_HOSTNAME` | Comma-separated allowed hostnames; defaults to the `FRONTEND_URL` host |
+
+> **Note**: Both keys must be configured together. Without them, attachment downloads fail closed (503) rather than bypassing verification. Keep the R2/S3 bucket private; a public bucket URL bypasses the Worker and therefore the gate. Attachments uploaded before enabling Turnstile are not covered.
+
 ### Step 3: Trigger Deployment
 
 1. Go to the **"Actions"** tab in your repository

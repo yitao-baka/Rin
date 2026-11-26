@@ -132,12 +132,24 @@
   "description": "描述",
   "draft": "草稿",
   "draft_bin": "草稿箱",
+  "download_verify": {
+    "description": "請完成安全驗證以下載此檔案。驗證結果在短時間內有效。",
+    "expired": "驗證已過期，請重試。",
+    "failed": "驗證失敗，請重試。",
+    "load_failed": "無法載入安全驗證，請檢查網路或廣告封鎖外掛。",
+    "not_configured": "本站尚未設定下載驗證。",
+    "required": "請重新驗證以繼續下載。",
+    "retry": "重試",
+    "title": "下載驗證"
+  },
   "edit": "編輯",
   "markdown_editor": {
     "placeholder": {
       "bold": "粗體文字",
       "code": "程式碼",
       "code_block": "程式碼區塊",
+      "details_content": "隱藏內容",
+      "details_title": "詳細資訊",
       "heading": "標題",
       "image_alt": "圖片描述",
       "image_url": "https://example.com/image.png",
@@ -150,6 +162,7 @@
     "toolbar": {
       "bold": "粗體",
       "code_block": "程式碼區塊",
+      "details": "折疊區塊",
       "heading": "標題",
       "horizontal_rule": "分隔線",
       "image": "圖片連結",
@@ -160,6 +173,7 @@
       "ordered_list": "有序列表",
       "quote": "引用",
       "unordered_list": "無序列表",
+      "upload_file": "上傳檔案",
       "upload_image": "上傳圖片"
     }
   },

@@ -132,12 +132,24 @@
   "description": "Description",
   "draft": "Draft",
   "draft_bin": "Draft Bin",
+  "download_verify": {
+    "description": "Complete the security check to download this file. Verification stays valid for a short period.",
+    "expired": "Verification expired. Please try again.",
+    "failed": "Verification failed. Please try again.",
+    "load_failed": "Unable to load the security check. Check your network or ad blocker.",
+    "not_configured": "Download verification is not configured on this site.",
+    "required": "Verify again to continue this download.",
+    "retry": "Try again",
+    "title": "Verify download"
+  },
   "edit": "Edit",
   "markdown_editor": {
     "placeholder": {
       "bold": "bold text",
       "code": "code",
       "code_block": "code block",
+      "details_content": "Hidden content",
+      "details_title": "Details",
       "heading": "Heading",
       "image_alt": "image description",
       "image_url": "https://example.com/image.png",
@@ -150,6 +162,7 @@
     "toolbar": {
       "bold": "Bold",
       "code_block": "Code block",
+      "details": "Collapsible block",
       "heading": "Heading",
       "horizontal_rule": "Horizontal rule",
       "image": "Image link",
@@ -160,6 +173,7 @@
       "ordered_list": "Ordered list",
       "quote": "Quote",
       "unordered_list": "Unordered list",
+      "upload_file": "Upload file",
       "upload_image": "Upload image"
     }
   },

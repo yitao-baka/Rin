@@ -41,6 +41,20 @@ Site configuration can be modified via the **Settings Page** after deployment. E
 | `S3_ACCESS_HOST` | No | Public access URL | Same as S3_ENDPOINT | `https://cdn.example.com` |
 | `S3_FORCE_PATH_STYLE` | No | Force path-style URLs | false | `false` |
 
+### Download Verification
+
+Attachment downloads can be protected with Cloudflare Turnstile. Set both keys to enable it; attachments then fail closed until verification is configured.
+
+| Variable | Required | Description | Default | Example |
+|----------|----------|-------------|---------|---------|
+| `TURNSTILE_SITE_KEY` | No | Turnstile public site key | - | `0x4AAAAAAA...` |
+| `TURNSTILE_SECRET_KEY` | No | Turnstile secret key (Worker secret) | - | `0x4AAAAAAA...` |
+| `TURNSTILE_EXPECTED_HOSTNAME` | No | Comma-separated hostnames allowed to verify | `FRONTEND_URL` host | `blog.example.com` |
+
+:::warning
+Keep the R2/S3 bucket private (or restrict its public domain). A public bucket URL bypasses the Worker and therefore the verification gate. Attachments are stored under `S3_FOLDER/attachments/`; files uploaded before enabling Turnstile are not gated.
+:::
+
 ### Feature Flags
 
 | Variable | Required | Description | Default | Recommended |

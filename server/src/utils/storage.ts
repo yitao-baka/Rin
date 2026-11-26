@@ -72,6 +72,14 @@ function buildBlobUrl(storageKey: string, baseUrl?: string) {
   return `${trimTrailingSlash(baseUrl)}${path}`;
 }
 
+/**
+ * Builds the Worker blob URL for a storage key. The blob route can add
+ * `Content-Disposition` headers that a public bucket URL cannot.
+ */
+export function getStorageBlobUrl(storageKey: string, baseUrl?: string) {
+  return buildBlobUrl(storageKey, baseUrl);
+}
+
 function createStorageResponse(object: R2ObjectBody | R2Object, body?: BodyInit | null) {
   const headers = new Headers();
   object.writeHttpMetadata(headers);

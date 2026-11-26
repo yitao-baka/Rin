@@ -132,12 +132,24 @@
   "description": "描述",
   "draft": "草稿",
   "draft_bin": "草稿箱",
+  "download_verify": {
+    "description": "请完成安全验证以下载此文件。验证结果在短时间内有效。",
+    "expired": "验证已过期，请重试。",
+    "failed": "验证失败，请重试。",
+    "load_failed": "无法加载安全验证，请检查网络或广告拦截插件。",
+    "not_configured": "本站尚未配置下载验证。",
+    "required": "请重新验证以继续下载。",
+    "retry": "重试",
+    "title": "下载验证"
+  },
   "edit": "编辑",
   "markdown_editor": {
     "placeholder": {
       "bold": "加粗文字",
       "code": "代码",
       "code_block": "代码块",
+      "details_content": "隐藏内容",
+      "details_title": "详细信息",
       "heading": "标题",
       "image_alt": "图片描述",
       "image_url": "https://example.com/image.png",
@@ -150,6 +162,7 @@
     "toolbar": {
       "bold": "加粗",
       "code_block": "代码块",
+      "details": "折叠块",
       "heading": "标题",
       "horizontal_rule": "分割线",
       "image": "图片链接",
@@ -160,6 +173,7 @@
       "ordered_list": "有序列表",
       "quote": "引用",
       "unordered_list": "无序列表",
+      "upload_file": "上传文件",
       "upload_image": "上传图片"
     }
   },

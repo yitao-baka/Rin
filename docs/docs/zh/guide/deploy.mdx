@@ -62,6 +62,20 @@ Rin 目前支持账号密码登录与 Github OAuth 登录，可二选一或同�
 
 > **提示**: 账号密码登录和 GitHub OAuth 登录可以同时启用，用户可以在登录页面自由选择登录方式。
 
+#### 下载验证（启用文章附件时需要）
+
+文章附件下载使用 Cloudflare Turnstile 做验证。启用前请先在 Cloudflare 控制台的 **Turnstile** 中创建站点，并把博客域名加入允许列表。
+
+在 GitHub 仓库的 **Settings → Secrets and variables → Actions** 中添加：
+
+| 类型 | 名称 | 值 |
+|------|------|----|
+| Secret | `TURNSTILE_SECRET_KEY` | Turnstile Secret Key |
+| Variable | `TURNSTILE_SITE_KEY` | Turnstile Site Key |
+| Variable（可选） | `TURNSTILE_EXPECTED_HOSTNAME` | 允许验证的域名，逗号分隔；不填时使用 `FRONTEND_URL` 的域名 |
+
+> **注意**: 两个 Key 必须同时配置。未配置时附件下载会失败关闭（返回 503），不会绕过验证。请保持 R2/S3 桶私有，否则公开桶地址会绕过 Worker 的下载验证。启用前已上传的旧附件不在验证范围内。
+
 ### 第三步：触发部署
 
 1. 进入仓库的 **"Actions"** 标签

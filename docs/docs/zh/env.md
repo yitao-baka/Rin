@@ -41,6 +41,20 @@ Rin 部署需要配置两类环境变量：**Variables（明文变量）**和**S
 | `S3_ACCESS_HOST` | 否 | 对外访问地址 | 同 S3_ENDPOINT | `https://cdn.example.com` |
 | `S3_FORCE_PATH_STYLE` | 否 | 强制路径样式 | false | `false` |
 
+### 下载验证
+
+可以使用 Cloudflare Turnstile 保护文章附件下载。两个 key 同时设置后启用；未配置时附件下载会失败关闭（不会绕过验证）。
+
+| 变量名 | 必填 | 描述 | 默认值 | 示例 |
+|--------|------|------|--------|------|
+| `TURNSTILE_SITE_KEY` | 否 | Turnstile 公开 site key | - | `0x4AAAAAAA...` |
+| `TURNSTILE_SECRET_KEY` | 否 | Turnstile secret key（Worker secret） | - | `0x4AAAAAAA...` |
+| `TURNSTILE_EXPECTED_HOSTNAME` | 否 | 允许验证的域名，逗号分隔 | `FRONTEND_URL` 的域名 | `blog.example.com` |
+
+:::warning
+请保持 R2/S3 桶私有（或限制其公开域名）。公开桶地址会绕过 Worker，从而绕过下载验证。附件存储于 `S3_FOLDER/attachments/`；启用 Turnstile 之前上传的文件不会被纳入验证。
+:::
+
 ### 功能开关
 
 | 变量名 | 必填 | 描述 | 默认值 | 推荐值 |

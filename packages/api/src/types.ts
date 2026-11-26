@@ -284,6 +284,25 @@ export interface AIConfig {
 
 export interface UploadResponse {
   url: string;
+  /**
+   * Same-origin blob URL that can carry download headers. Only set when the
+   * public URL points outside the Worker (for example an S3/R2 custom domain).
+   */
+  downloadUrl?: string;
+}
+
+export interface DownloadConfigResponse {
+  /** Whether the server can verify Turnstile tokens for attachment downloads. */
+  enabled: boolean;
+  /** Public Turnstile site key, safe to embed in the browser. */
+  siteKey?: string;
+}
+
+export interface DownloadVerifyResponse {
+  /** Short-lived signed bearer token used by the download request. */
+  session: string;
+  /** Unix epoch milliseconds at which the session expires. */
+  expiresAt: number;
 }
 
 // ============================================================================

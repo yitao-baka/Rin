@@ -30,6 +30,8 @@ import type {
   ConfigResponse,
   AIConfig,
   UploadResponse,
+  DownloadConfigResponse,
+  DownloadVerifyResponse,
   AuthStatus,
   LoginRequest,
   LoginResponse,
@@ -152,6 +154,8 @@ export type {
   ConfigResponse,
   AIConfig,
   UploadResponse,
+  DownloadConfigResponse,
+  DownloadVerifyResponse,
   AuthStatus,
   LoginRequest,
   LoginResponse,
@@ -565,12 +569,23 @@ class StorageAPI {
   constructor(private http: HttpClient) {}
 
   // POST /api/storage
-  async upload(file: File, key?: string): Promise<ApiResponse<UploadResponse>> {
+  async upload(file: File, key?: string, kind?: "image" | "attachment"): Promise<ApiResponse<UploadResponse>> {
     const formData = new FormData();
     formData.append("file", file);
     if (key) formData.append("key", key);
-    
+    if (kind) formData.append("kind", kind);
+
     return this.http.post<UploadResponse>("/api/storage", formData);
+  }
+
+  // GET /api/storage/download-config
+  async downloadConfig(): Promise<ApiResponse<DownloadConfigResponse>> {
+    return this.http.get<DownloadConfigResponse>("/api/storage/download-config");
+  }
+
+  // POST /api/storage/download-verify
+  async verifyDownload(token: string): Promise<ApiResponse<DownloadVerifyResponse>> {
+    return this.http.post<DownloadVerifyResponse>("/api/storage/download-verify", { token });
   }
 }
 
