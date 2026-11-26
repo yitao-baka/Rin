@@ -23,4 +23,18 @@ describe('stripMarkdown', () => {
     it('strips task markers before generic list markers', () => {
         expect(stripMarkdown('- [x] Done\n- [ ] Todo')).toBe('Done\nTodo');
     });
+
+    it('removes collapsed blocks from summary text', () => {
+        const result = stripMarkdown([
+            ':::details More',
+            '',
+            'Hidden text',
+            '',
+            ':::',
+            '',
+            'Visible text',
+        ].join('\n'));
+
+        expect(result).toBe('Visible text');
+    });
 });

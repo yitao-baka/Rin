@@ -6,7 +6,14 @@ import Loading from 'react-loading';
 import { FlatInset, FlatTabButton } from "@rin/ui";
 import { useAlert } from "./dialog";
 import { useColorMode } from "../utils/darkModeUtils";
-import { buildMarkdownImage, uploadImageFile } from "../utils/image-upload";
+import { buildMarkdownAttachment, DEFAULT_ATTACHMENT_MAX_FILE_SIZE } from "../utils/attachment";
+import {
+  buildMarkdownImage,
+  DEFAULT_IMAGE_MAX_FILE_SIZE,
+  isImageFile,
+  uploadAttachmentFile,
+  uploadImageFile,
+} from "../utils/image-upload";
 import { Markdown } from "./markdown";
 
 
@@ -74,26 +81,55 @@ export function MarkdownEditor({ content, setContent, placeholder = "> Write you
   const [uploading, setUploading] = useState(false);
   const { showAlert, AlertUI } = useAlert();
 
-  async function insertImage(
-    file: File,
+  async function buildFileSnippet(file: File, showAlert: (msg: string) => void): Promise<string | null> {
+    if (isImageFile(file)) {
+      if (file.size > DEFAULT_IMAGE_MAX_FILE_SIZE) {
+        showAlert(t("upload.failed$size", { size: DEFAULT_IMAGE_MAX_FILE_SIZE / 1024 / 1024 }));
+        return null;
+      }
+      const result = await uploadImageFile(file);
+      return buildMarkdownImage(file.name, result.url, {
+        blurhash: result.blurhash,
+        width: result.width,
+        height: result.height,
+      });
+    }
+
+    if (file.size > DEFAULT_ATTACHMENT_MAX_FILE_SIZE) {
+      showAlert(t("upload.failed$size", { size: DEFAULT_ATTACHMENT_MAX_FILE_SIZE / 1024 / 1024 }));
+      return null;
+    }
+    const result = await uploadAttachmentFile(file);
+    return buildMarkdownAttachment(file.name, result.url);
+  }
+
+  async function insertFiles(
+    files: File[],
     range: NonNullable<ReturnType<editor.IStandaloneCodeEditor["getSelection"]>>,
     showAlert: (msg: string) => void,
   ) {
+    if (files.length === 0) return;
+
+    setUploading(true);
     try {
-      const result = await uploadImageFile(file);
-      const editorInstance = editorRef.current;
-      if (!editorInstance) return;
-      editorInstance.executeEdits(undefined, [{
-        range,
-        text: buildMarkdownImage(file.name, result.url, {
-          blurhash: result.blurhash,
-          width: result.width,
-          height: result.height,
-        }),
-      }]);
-    } catch (error) {
-      console.error(error);
-      showAlert(error instanceof Error ? error.message : t("upload.failed"));
+      const snippets: string[] = [];
+      for (const file of files) {
+        try {
+          const snippet = await buildFileSnippet(file, showAlert);
+          if (snippet) {
+            snippets.push(snippet);
+          }
+        } catch (error) {
+          console.error(error);
+          showAlert(error instanceof Error ? error.message : t("upload.failed"));
+        }
+      }
+
+      if (snippets.length > 0) {
+        replaceSelection(range, snippets.join("\n"), undefined);
+      }
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -206,6 +242,27 @@ export function MarkdownEditor({ content, setContent, placeholder = "> Write you
     replaceSelection(editorState.selection, "\n---\n");
   };
 
+  const insertDetailsBlock = () => {
+    const editorState = getEditorAndSelection();
+    if (!editorState) return;
+
+    const { model, selection } = editorState;
+    const selectedText = model.getValueInRange(selection);
+    const title = t("markdown_editor.placeholder.details_title");
+    const innerText = selectedText || t("markdown_editor.placeholder.details_content");
+    const prefix = `:::details ${title}\n\n`;
+    const suffix = `\n\n:::`;
+    const insertedText = `${prefix}${innerText}${suffix}`;
+    const titleStart = positionAfterText(selection.startLineNumber, selection.startColumn, ":::details ");
+    const titleEnd = positionAfterText(titleStart.lineNumber, titleStart.column, title);
+    const end = positionAfterText(selection.startLineNumber, selection.startColumn, insertedText);
+    const nextSelection = selectedText
+      ? new Selection(end.lineNumber, end.column, end.lineNumber, end.column)
+      : new Selection(titleStart.lineNumber, titleStart.column, titleEnd.lineNumber, titleEnd.column);
+
+    replaceSelection(selection, insertedText, nextSelection);
+  };
+
   const formatSelectedLines = (
     formatter: (line: string, index: number) => string,
     emptyLineFallback: string,
@@ -285,52 +342,37 @@ export function MarkdownEditor({ content, setContent, placeholder = "> Write you
     { key: "ordered-list", icon: "ri-list-ordered", label: t("markdown_editor.toolbar.ordered_list"), onClick: formatOrderedList },
     { key: "inline-code", icon: "ri-code-s-slash-line", label: t("markdown_editor.toolbar.inline_code"), onClick: () => wrapSelection("`", "`", t("markdown_editor.placeholder.code")) },
     { key: "code-block", icon: "ri-code-box-line", label: t("markdown_editor.toolbar.code_block"), onClick: insertCodeBlock },
+    { key: "details", icon: "ri-arrow-up-down-line", label: t("markdown_editor.toolbar.details"), onClick: insertDetailsBlock },
     { key: "horizontal-rule", icon: "ri-separator", label: t("markdown_editor.toolbar.horizontal_rule"), onClick: insertHorizontalRule },
   ];
 
   const handlePaste = async (event: React.ClipboardEvent<HTMLDivElement>) => {
     const clipboardData = event.clipboardData;
-    if (clipboardData.files.length === 1) {
-      const editor = editorRef.current;
-      if (!editor) return;
-      editor.trigger(undefined, "undo", undefined);
-      setUploading(true);
-      const myfile = clipboardData.files[0] as File;
-      const selection = editor.getSelection();
-      if (!selection) {
-        setUploading(false);
-        return;
-      }
-      void insertImage(myfile, selection, showAlert).finally(() => {
-        setUploading(false);
-      });
-    }
+    if (clipboardData.files.length === 0) return;
+
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.trigger(undefined, "undo", undefined);
+    const selection = editor.getSelection();
+    if (!selection) return;
+
+    void insertFiles(Array.from(clipboardData.files), selection, showAlert);
   };
 
   function UploadImageButton() {
     const uploadRef = useRef<HTMLInputElement>(null);
     const label = t("markdown_editor.toolbar.upload_image");
-    
-    const upChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-      const files = event.currentTarget.files;
-      if (!files) return;
 
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        if (file.size > 5 * 1024000) {
-          showAlert(t("upload.failed$size", { size: 5 }));
-          uploadRef.current!.value = "";
-        } else {
-          const editor = editorRef.current;
-          if (!editor) return;
-          const selection = editor.getSelection();
-          if (!selection) return;
-          setUploading(true);
-          void insertImage(file, selection, showAlert).finally(() => {
-            setUploading(false);
-          });
-        }
-      }
+    const upChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(event.currentTarget.files ?? []);
+      event.currentTarget.value = "";
+      if (files.length === 0) return;
+
+      const editor = editorRef.current;
+      const selection = editor?.getSelection();
+      if (!editor || !selection) return;
+
+      void insertFiles(files, selection, showAlert);
     };
     
     return (
@@ -340,11 +382,47 @@ export function MarkdownEditor({ content, setContent, placeholder = "> Write you
           onChange={upChange}
           className="hidden"
           type="file"
+          multiple
           accept="image/gif,image/jpeg,image/jpg,image/png,image/svg+xml"
         />
         <MarkdownToolButton
           label={label}
           icon="ri-image-add-line"
+          disabled={uploading}
+          onClick={() => uploadRef.current?.click()}
+        />
+      </>
+    );
+  }
+
+  function UploadFileButton() {
+    const uploadRef = useRef<HTMLInputElement>(null);
+    const label = t("markdown_editor.toolbar.upload_file");
+
+    const upChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(event.currentTarget.files ?? []);
+      event.currentTarget.value = "";
+      if (files.length === 0) return;
+
+      const editor = editorRef.current;
+      const selection = editor?.getSelection();
+      if (!editor || !selection) return;
+
+      void insertFiles(files, selection, showAlert);
+    };
+
+    return (
+      <>
+        <input
+          ref={uploadRef}
+          onChange={upChange}
+          className="hidden"
+          type="file"
+          multiple
+        />
+        <MarkdownToolButton
+          label={label}
+          icon="ri-attachment-2"
           disabled={uploading}
           onClick={() => uploadRef.current?.click()}
         />
@@ -420,6 +498,7 @@ export function MarkdownEditor({ content, setContent, placeholder = "> Write you
           ))}
           <span className="mx-1 hidden h-6 w-px bg-black/10 dark:bg-white/10 sm:block" aria-hidden="true" />
           <UploadImageButton />
+          <UploadFileButton />
         </div>
         {uploading &&
           <div className="flex flex-row items-center space-x-2 px-2">
@@ -436,15 +515,10 @@ export function MarkdownEditor({ content, setContent, placeholder = "> Write you
               e.preventDefault();
               const editor = editorRef.current;
               if (!editor) return;
-              for (let i = 0; i < e.dataTransfer.files.length; i++) {
-                const selection = editor.getSelection();
-                if (!selection) return;
-                const file = e.dataTransfer.files[i];
-                setUploading(true);
-                void insertImage(file, selection, showAlert).finally(() => {
-                  setUploading(false);
-                });
-              }
+              const files = Array.from(e.dataTransfer.files);
+              const selection = editor.getSelection();
+              if (!selection || files.length === 0) return;
+              void insertFiles(files, selection, showAlert);
             }}
             onPaste={handlePaste}
           >

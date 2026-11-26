@@ -5,6 +5,7 @@ import { createMiddleware } from "hono/factory";
 import type { Variables, JWTUtils, CacheImpl } from "../../core/hono-types";
 import { createMockDB, createMockEnv, cleanupTestDB } from '../../../tests/fixtures';
 import type { Database } from 'bun:sqlite';
+import { createJWT } from '../../utils/jwt';
 
 // Simple cache implementation for tests
 class TestCacheImpl implements CacheImpl {
@@ -77,10 +78,7 @@ describe('StorageService', () => {
             c.set('cache', new TestCacheImpl());
             c.set('serverConfig', new TestCacheImpl());
             c.set('clientConfig', new TestCacheImpl());
-            c.set('jwt', {
-                sign: async (payload: any) => `mock_token_${payload.id}`,
-                verify: async (token: string) => token.startsWith('mock_token_') ? { id: 1 } : null,
-            } as JWTUtils);
+            c.set('jwt', createJWT('test-jwt-secret') as JWTUtils);
             c.set('oauth2', undefined);
             c.set('admin', false);
             c.set('env', env);
@@ -115,10 +113,7 @@ describe('StorageService', () => {
             c.set('cache', new TestCacheImpl());
             c.set('serverConfig', new TestCacheImpl());
             c.set('clientConfig', new TestCacheImpl());
-            c.set('jwt', {
-                sign: async (payload: any) => `mock_token_${payload.id}`,
-                verify: async (token: string) => token.startsWith('mock_token_') ? { id: 1 } : null,
-            } as JWTUtils);
+            c.set('jwt', createJWT('test-jwt-secret') as JWTUtils);
             c.set('env', appEnv);
             c.set('uid', uid);
             c.set('admin', admin);
@@ -269,8 +264,9 @@ describe('StorageService', () => {
             expect(putCalls).toHaveLength(1);
             expect(putCalls[0]?.key).toMatch(/^images\/[a-f0-9]+\.txt$/);
             expect(putCalls[0]?.type).toBe('text/plain;charset=utf-8');
-            const payload = await res.json() as { url: string };
+            const payload = await res.json() as { url: string; downloadUrl?: string };
             expect(payload.url).toMatch(/^https:\/\/images\.example\.com\/images\/[a-f0-9]+\.txt$/);
+            expect(payload.downloadUrl).toMatch(/\/api\/blob\/images\/[a-f0-9]+\.txt$/);
         });
 
         it('should return an /api/blob URL when R2 is configured without S3_ACCESS_HOST', async () => {
@@ -437,6 +433,41 @@ describe('StorageService', () => {
             expect(res.headers.get('content-type')).toBe('application/octet-stream');
             expect(res.headers.get('content-disposition')).toBe('attachment');
         });
+
+        it('uses the download query parameter to force an attachment name', async () => {
+            const r2Env = blobEnv({
+                'files/manual.pdf': { contentType: 'application/pdf', body: '%PDF-1.7' },
+            });
+            const r2App = createAppWithEnv(r2Env, undefined, false);
+
+            const res = await r2App.request(
+                `/blob/files/manual.pdf?download=${encodeURIComponent('手册.pdf')}`,
+                { method: 'GET' },
+                r2Env,
+            );
+
+            expect(res.status).toBe(200);
+            expect(res.headers.get('content-type')).toBe('application/pdf');
+            expect(res.headers.get('content-disposition')).toBe(
+                'attachment; filename="__.pdf"; filename*=UTF-8\'\'%E6%89%8B%E5%86%8C.pdf',
+            );
+        });
+
+        it('sanitizes unsafe characters in download file names', async () => {
+            const r2Env = blobEnv({
+                'files/report.txt': { contentType: 'text/plain', body: 'hello' },
+            });
+            const r2App = createAppWithEnv(r2Env, undefined, false);
+
+            const res = await r2App.request(
+                `/blob/files/report.txt?download=${encodeURIComponent('a"b/c\r\nd.txt')}`,
+                { method: 'GET' },
+                r2Env,
+            );
+
+            expect(res.status).toBe(200);
+            expect(res.headers.get('content-disposition')).toContain('filename="a_b_cd.txt"');
+        });
     });
 
     describe('GET /blob/* - Stream file', () => {
@@ -525,6 +556,227 @@ describe('StorageService', () => {
             expect(res.status).toBe(200);
             expect(res.headers.get('content-type')).toBe('text/plain');
             expect(await res.text()).toBe('test');
+        });
+    });
+
+    describe('attachment download verification', () => {
+        const originalFetch = globalThis.fetch;
+
+        afterEach(() => {
+            globalThis.fetch = originalFetch;
+        });
+
+        function attachmentEnv(
+            objects: Record<string, { contentType: string; body: string }>,
+            extra: Partial<Env> = {},
+        ) {
+            return createMockEnv({
+                R2_BUCKET: {
+                    get: async (key: string) => {
+                        const entry = objects[key];
+                        if (!entry) {
+                            return null;
+                        }
+                        return {
+                            key,
+                            size: entry.body.length,
+                            httpEtag: 'etag',
+                            uploaded: new Date('2025-01-01T00:00:00Z'),
+                            writeHttpMetadata(headers: Headers) {
+                                headers.set('Content-Type', entry.contentType);
+                            },
+                            body: new Blob([entry.body]).stream(),
+                        } as unknown as R2ObjectBody;
+                    },
+                } as unknown as R2Bucket,
+                S3_ACCESS_HOST: '',
+                TURNSTILE_SITE_KEY: 'test-site-key',
+                TURNSTILE_SECRET_KEY: 'test-secret-key',
+                FRONTEND_URL: 'https://blog.example.com',
+                ...extra,
+            } as Partial<Env>);
+        }
+
+        function mockSiteverify(payload: { success: boolean; hostname?: string; 'error-codes'?: string[] }) {
+            globalThis.fetch = (async (input: any, init?: any) => {
+                const url = typeof input === 'string' ? input : input?.url;
+                if (url === 'https://challenges.cloudflare.com/turnstile/v0/siteverify') {
+                    return new Response(JSON.stringify(payload), {
+                        status: 200,
+                        headers: { 'content-type': 'application/json' },
+                    });
+                }
+                return originalFetch(input, init);
+            }) as typeof fetch;
+        }
+
+        async function issueSession(appEnv: Env) {
+            const r2App = createAppWithEnv(appEnv, undefined, false);
+            const verifyRes = await r2App.request('/download-verify', {
+                method: 'POST',
+                headers: {
+                    'content-type': 'application/json',
+                    origin: 'https://blog.example.com',
+                },
+                body: JSON.stringify({ token: 'one-time-turnstile-token' }),
+            }, appEnv);
+
+            expect(verifyRes.status).toBe(200);
+            const payload = await verifyRes.json() as { session: string; expiresAt: number };
+            return { r2App, payload };
+        }
+
+        it('exposes the public site key and never the secret', async () => {
+            const r2Env = attachmentEnv({});
+            const r2App = createAppWithEnv(r2Env, undefined, false);
+
+            const res = await r2App.request('/download-config', {}, r2Env);
+            const payload = await res.json() as { enabled: boolean; siteKey?: string };
+
+            expect(res.status).toBe(200);
+            expect(payload).toEqual({ enabled: true, siteKey: 'test-site-key' });
+        });
+
+        it('reports disabled when one of the Turnstile keys is missing', async () => {
+            const r2Env = attachmentEnv({}, { TURNSTILE_SECRET_KEY: '' });
+            const r2App = createAppWithEnv(r2Env, undefined, false);
+
+            const res = await r2App.request('/download-config', {}, r2Env);
+            const payload = await res.json() as { enabled: boolean; siteKey?: string };
+
+            expect(res.status).toBe(200);
+            expect(payload).toEqual({ enabled: false });
+        });
+
+        it('blocks attachment downloads without a verified session', async () => {
+            const r2Env = attachmentEnv({
+                'images/attachments/manual.pdf': { contentType: 'application/pdf', body: 'pdf-bytes' },
+            });
+            const r2App = createAppWithEnv(r2Env, undefined, false);
+
+            const res = await r2App.request('/blob/images/attachments/manual.pdf?download=manual.pdf', {}, r2Env);
+
+            expect(res.status).toBe(401);
+            expect(res.headers.get('cache-control')).toBe('no-store');
+        });
+
+        it('fails closed when Turnstile is not configured', async () => {
+            const r2Env = attachmentEnv(
+                { 'images/attachments/manual.pdf': { contentType: 'application/pdf', body: 'pdf-bytes' } },
+                { TURNSTILE_SITE_KEY: '', TURNSTILE_SECRET_KEY: '' },
+            );
+            const r2App = createAppWithEnv(r2Env, undefined, false);
+
+            const res = await r2App.request('/blob/images/attachments/manual.pdf', {}, r2Env);
+
+            expect(res.status).toBe(503);
+        });
+
+        it('keeps ordinary images public', async () => {
+            const r2Env = attachmentEnv({
+                'images/photo.png': { contentType: 'image/png', body: 'png-bytes' },
+            });
+            const r2App = createAppWithEnv(r2Env, undefined, false);
+
+            const res = await r2App.request('/blob/images/photo.png', {}, r2Env);
+
+            expect(res.status).toBe(200);
+            expect(await res.text()).toBe('png-bytes');
+        });
+
+        it('issues a signed session after siteverify succeeds and streams the attachment', async () => {
+            mockSiteverify({ success: true, hostname: 'blog.example.com' });
+            const r2Env = attachmentEnv({
+                'images/attachments/manual.pdf': { contentType: 'application/pdf', body: 'pdf-bytes' },
+            });
+            const { r2App, payload } = await issueSession(r2Env);
+
+            expect(typeof payload.session).toBe('string');
+            expect(payload.expiresAt).toBeGreaterThan(Date.now());
+
+            const fileRes = await r2App.request(
+                '/blob/images/attachments/manual.pdf?download=%E6%89%8B%E5%86%8C.pdf',
+                { headers: { 'x-download-session': payload.session } },
+                r2Env,
+            );
+
+            expect(fileRes.status).toBe(200);
+            expect(await fileRes.text()).toBe('pdf-bytes');
+            expect(fileRes.headers.get('content-disposition')).toContain('attachment');
+            expect(fileRes.headers.get('content-disposition')).toContain(
+                "filename*=UTF-8''%E6%89%8B%E5%86%8C.pdf",
+            );
+            expect(fileRes.headers.get('cache-control')).toBe('private, no-store');
+        });
+
+        it('rejects a token when siteverify fails', async () => {
+            mockSiteverify({ success: false, 'error-codes': ['invalid-input-response'] });
+            const r2Env = attachmentEnv({});
+            const r2App = createAppWithEnv(r2Env, undefined, false);
+
+            const res = await r2App.request('/download-verify', {
+                method: 'POST',
+                headers: {
+                    'content-type': 'application/json',
+                    origin: 'https://blog.example.com',
+                },
+                body: JSON.stringify({ token: 'bad-token' }),
+            }, r2Env);
+
+            expect(res.status).toBe(403);
+            const payload = await res.json() as { error: string; codes: string[] };
+            expect(payload.error).toBe('Verification failed');
+            expect(payload.codes).toContain('invalid-input-response');
+        });
+
+        it('rejects a token solved on a different hostname', async () => {
+            mockSiteverify({ success: true, hostname: 'evil.example.com' });
+            const r2Env = attachmentEnv({});
+            const r2App = createAppWithEnv(r2Env, undefined, false);
+
+            const res = await r2App.request('/download-verify', {
+                method: 'POST',
+                headers: {
+                    'content-type': 'application/json',
+                    origin: 'https://blog.example.com',
+                },
+                body: JSON.stringify({ token: 'foreign-token' }),
+            }, r2Env);
+
+            expect(res.status).toBe(403);
+            expect((await res.json() as { error: string }).error).toBe('Verification hostname mismatch');
+        });
+
+        it('stores attachment uploads under the gated folder', async () => {
+            const putCalls: Array<{ key: string; type: string | undefined }> = [];
+            const r2Env = createMockEnv({
+                R2_BUCKET: {
+                    put: async (key: string, _value: any, options?: R2PutOptions) => {
+                        putCalls.push({
+                            key,
+                            type: options?.httpMetadata && 'contentType' in options.httpMetadata
+                                ? options.httpMetadata.contentType
+                                : undefined,
+                        });
+                        return {} as unknown as R2Object;
+                    },
+                } as unknown as R2Bucket,
+                S3_ACCESS_HOST: 'https://images.example.com' as any,
+            });
+            const adminApp = createAppWithEnv(r2Env, 1, true);
+            const formData = new FormData();
+            formData.append('key', 'manual.pdf');
+            formData.append('kind', 'attachment');
+            formData.append('file', new File(['pdf-bytes'], 'manual.pdf', { type: 'application/pdf' }));
+
+            const res = await adminApp.request('/', { method: 'POST', body: formData }, r2Env);
+
+            expect(res.status).toBe(200);
+            expect(putCalls).toHaveLength(1);
+            expect(putCalls[0]?.key).toMatch(/^images\/attachments\/[a-f0-9]+\.pdf$/);
+            const payload = await res.json() as { url: string; downloadUrl: string };
+            expect(payload.url).toMatch(/\/api\/blob\/images\/attachments\/[a-f0-9]+\.pdf$/);
+            expect(payload.downloadUrl).toBe(payload.url);
         });
     });
 });

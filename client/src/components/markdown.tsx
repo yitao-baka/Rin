@@ -9,6 +9,7 @@ import {
 import rehypeKatex from "rehype-katex";
 import rehypeRaw from "rehype-raw";
 import gfm from "remark-gfm";
+import remarkDetails from "../remark/remarkDetails";
 import remarkMermaid from "../remark/remarkMermaid";
 import { remarkAlert } from "remark-github-blockquote-alert";
 import remarkMath from "remark-math";
@@ -18,7 +19,9 @@ import Counter from "yet-another-react-lightbox/plugins/counter";
 import Download from "yet-another-react-lightbox/plugins/download";
 import Zoom from "yet-another-react-lightbox/plugins/zoom";
 import "yet-another-react-lightbox/styles.css";
+import { resolveAttachmentName } from "../utils/attachment";
 import { drawBlurhashToCanvas } from "../utils/blurhash";
+import { AttachmentLink } from "./attachment-link";
 import { useColorMode } from "../utils/darkModeUtils";
 import { parseImageUrlMetadata } from "../utils/image-upload";
 import { useImageLoadState } from "../utils/use-image-load-state";
@@ -136,7 +139,7 @@ export function Markdown({ content }: { content: string }) {
   const Content = useMemo(() => (
     <ReactMarkdown
       className="toc-content min-w-0 dark:text-neutral-300 [overflow-wrap:anywhere]"
-      remarkPlugins={[gfm, remarkMermaid, remarkMath, remarkAlert, remarkBreaks]}
+      remarkPlugins={[gfm, remarkDetails, remarkMermaid, remarkMath, remarkAlert, remarkBreaks]}
       children={content}
       rehypePlugins={[rehypeKatex, rehypeRaw]}
       components={{
@@ -255,6 +258,30 @@ export function Markdown({ content }: { content: string }) {
             </blockquote>
           );
         },
+        details({ children, className, node: _node, ...props }) {
+          return (
+            <details
+              className={`group my-4 rounded-xl border border-black/10 bg-neutral-50 px-4 py-3 dark:border-white/10 dark:bg-neutral-800/40 ${className || ""}`.trim()}
+              {...props}
+            >
+              {children}
+            </details>
+          );
+        },
+        summary({ children, className, node: _node, ...props }) {
+          return (
+            <summary
+              className={`flex cursor-pointer list-none select-none items-center gap-2 font-medium text-neutral-800 [&::-webkit-details-marker]:hidden dark:text-neutral-200 ${className || ""}`.trim()}
+              {...props}
+            >
+              <i
+                className="ri-arrow-right-s-line shrink-0 text-lg text-neutral-500 transition-transform group-open:rotate-90"
+                aria-hidden="true"
+              />
+              <span className="min-w-0 flex-1 break-words">{children}</span>
+            </summary>
+          );
+        },
         em({ children, ...props }) {
           return (
             <em className="ml-[1px] mr-[4px]" {...props}>
@@ -294,10 +321,21 @@ export function Markdown({ content }: { content: string }) {
             </li>
           );
         },
-        a({ children, ...props }) {
+        a({ children, href, ...props }) {
+          const downloadName = resolveAttachmentName(href);
+
+          if (downloadName) {
+            return (
+              <AttachmentLink href={href} fileName={downloadName}>
+                {children}
+              </AttachmentLink>
+            );
+          }
+
           return (
             <a
               className="break-words text-[#0686c8] hover:underline dark:text-[#2590f1] [overflow-wrap:anywhere]"
+              href={href}
               {...props}
             >
               {children}

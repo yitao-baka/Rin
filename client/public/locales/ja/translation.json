@@ -132,12 +132,24 @@
   "description": "説明",
   "draft": "下書き",
   "draft_bin": "下書き",
+  "download_verify": {
+    "description": "ファイルをダウンロードするにはセキュリティチェックを完了してください。確認はしばらく有効です。",
+    "expired": "確認の有効期限が切れました。もう一度お試しください。",
+    "failed": "確認に失敗しました。もう一度お試しください。",
+    "load_failed": "セキュリティチェックを読み込めません。ネットワークまたは広告ブロッカーを確認してください。",
+    "not_configured": "このサイトではダウンロードの確認が設定されていません。",
+    "required": "続行するにはもう一度確認してください。",
+    "retry": "再試行",
+    "title": "ダウンロードの確認"
+  },
   "edit": "編集",
   "markdown_editor": {
     "placeholder": {
       "bold": "太字テキスト",
       "code": "コード",
       "code_block": "コードブロック",
+      "details_content": "非表示の内容",
+      "details_title": "詳細",
       "heading": "見出し",
       "image_alt": "画像の説明",
       "image_url": "https://example.com/image.png",
@@ -150,6 +162,7 @@
     "toolbar": {
       "bold": "太字",
       "code_block": "コードブロック",
+      "details": "折りたたみブロック",
       "heading": "見出し",
       "horizontal_rule": "区切り線",
       "image": "画像リンク",
@@ -160,6 +173,7 @@
       "ordered_list": "番号付きリスト",
       "quote": "引用",
       "unordered_list": "箇条書き",
+      "upload_file": "ファイルをアップロード",
       "upload_image": "画像をアップロード"
     }
   },

@@ -9,7 +9,7 @@ export function registerMiddlewares(app: RinApp) {
     cors({
       origin: (origin) => origin,
       allowMethods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-      allowHeaders: ["content-type", "authorization", "x-csrf-token"],
+      allowHeaders: ["content-type", "authorization", "x-csrf-token", "x-download-session"],
       maxAge: 600,
       credentials: true,
     }),

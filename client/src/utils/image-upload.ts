@@ -10,6 +10,10 @@ export type UploadedImageResult = {
   height?: number;
 };
 
+export type UploadedFileResult = {
+  url: string;
+};
+
 type ImageMetadata = {
   blurhash?: string;
   width?: number;
@@ -244,6 +248,25 @@ export async function enrichMarkdownImageMetadata(content: string): Promise<Mark
     updated,
     failed,
   };
+}
+
+export async function uploadAttachmentFile(file: File): Promise<UploadedFileResult> {
+  const { data, error } = await client.storage.upload(file, file.name, "attachment");
+
+  if (error) {
+    throw new Error(error.value);
+  }
+
+  const url =
+    typeof data === "string"
+      ? data
+      : data?.downloadUrl || data?.url;
+
+  if (!url) {
+    throw new Error("Invalid upload response");
+  }
+
+  return { url };
 }
 
 export async function uploadImageFile(file: File): Promise<UploadedImageResult> {

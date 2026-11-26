@@ -7,6 +7,11 @@ export function stripMarkdown(content: string): string {
     text = text.replace(/<iframe[\s\S]*?<\/iframe>/gi, "");
     text = text.replace(/<pre[\s\S]*?<\/pre>/gi, "");
 
+    // Collapsed blocks are hidden by default, so keep them out of excerpts.
+    text = text.replace(/^:::\s*(?:details|collapse|spoiler)\b[^\n]*\r?\n[\s\S]*?^:::\s*$/gim, "");
+    text = text.replace(/^:::\s*(?:details|collapse|spoiler)\b.*$/gim, "");
+    text = text.replace(/^:::\s*$/gm, "");
+
     text = text.replace(/!\[.*?\]\(.*?\)/g, "");
     text = text.replace(/\[([^\]]*)\]\(.*?\)/g, "$1");
     text = text.replace(/^#{1,6}\s+/gm, "");
